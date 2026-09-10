@@ -11,16 +11,19 @@ DocType: reference
 Intent: long-term
 Owners: []
 RelatedFiles:
-    - Path: repo://publish-vault/web/src/styles/base.css
-      Note: Global WebKit font smoothing and image-rendering declarations under investigation.
     - Path: repo://publish-vault/web/src/index.css
       Note: Frontend stylesheet entry point that imports base.css.
+    - Path: repo://publish-vault/web/src/styles/base.css
+      Note: Global WebKit font smoothing and image-rendering declarations under investigation.
+    - Path: repo://web/src/styles/base.css
+      Note: Implementation and generated-CSS validation target.
 ExternalSources: []
-Summary: 'Chronological implementation diary for removing WebKit font pixelation from the published vault UI.'
+Summary: Chronological implementation diary for removing WebKit font pixelation from the published vault UI.
 LastUpdated: 2026-09-10T16:20:00-04:00
 WhatFor: Resuming or reviewing the WebKit font-rendering fix.
 WhenToUse: Read before continuing work on PV-WEBKIT-FONT-001.
 ---
+
 
 # Investigation diary
 
@@ -83,3 +86,126 @@ The same rule also sets `font-smooth: never` and `image-rendering: pixelated`. T
 - Current declaration: `-webkit-font-smoothing: none`.
 - Proposed declaration: `-webkit-font-smoothing: antialiased`.
 - Deliberately unchanged: `font-smooth: never`, `image-rendering: pixelated`, font-family stacks, font sizes, weights, and all component styles.
+
+## Step 2: Apply the one-line WebKit smoothing fix and run the first validation
+
+The scoped implementation changed only the global WebKit smoothing value in `web/src/styles/base.css`: `none` is now `antialiased`. This directly removes the unsmoothed glyph mode that causes the reported pixelation while leaving image rendering and the rest of the retro design system untouched.
+
+The first validation run exposed an unrelated local dependency-installation problem. Both the type check and production build reach the existing MathJax integration and fail because the checked-in dependencies are not installed under `web/node_modules/@mathjax`; the CSS edit itself is not implicated. I preserved the exact diagnostics below and will retry after a frozen-lockfile install before deciding whether any issue remains.
+
+### Prompt Context
+**User prompt (verbatim):** see Step 1
+**Assistant interpretation:** Implement the isolated CSS change and validate the frontend.
+**Inferred user intent:** Fix WebKit font appearance without expanding scope into the unrelated MathJax dependency issue.
+**Commit (code):** Not yet; implementation validation is in progress.
+
+### What I did
+- Changed `web/src/styles/base.css:11` from `-webkit-font-smoothing: none` to `-webkit-font-smoothing: antialiased`.
+- Ran `pnpm --dir web check`.
+- Ran `pnpm --dir web build`.
+- Verified the source now contains one `-webkit-font-smoothing: antialiased` declaration and that `image-rendering: pixelated` remains unchanged.
+- Checked the local dependency tree and confirmed `web/node_modules/@mathjax` is absent even though both packages are declared in `web/package.json` and `web/pnpm-lock.yaml`.
+
+### Why
+- `antialiased` is the smallest deterministic WebKit-specific correction for the current `none` setting.
+- A frozen-lockfile install is the appropriate recovery for a missing local dependency when the manifest and lockfile already agree; changing application code to work around it would be unrelated scope.
+
+### What worked
+- The CSS edit applied cleanly and the source-level declaration check matches the intended state.
+
+### What didn't work
+- `pnpm --dir web check` failed with TypeScript `TS2307: Cannot find module` errors for `@mathjax/src/...` and `@mathjax/mathjax-newcm-font/...` imports in `web/src/lib/mathjax.ts`.
+- `pnpm --dir web build` failed during Vite/Rollup resolution with: `[vite]: Rollup failed to resolve import "@mathjax/mathjax-newcm-font/js/svg/dynamic/accents.js" from "/home/manuel/code/wesen/go-go-golems/publish-vault/web/src/lib/mathjax.ts"`.
+- These failures occur because `web/node_modules/@mathjax` is missing locally; they predate and are independent of the one-line CSS change.
+
+### What I learned
+- The local checkout has a stale or incomplete `web/node_modules` tree: the MathJax packages are present in the lockfile but not linked into `node_modules`.
+- The existing repository diary for the MathJax ticket records the same class of local environment failure, reinforcing that dependency restoration is the correct next diagnostic step rather than a CSS change.
+
+### What was tricky to build
+- The requested change is visually motivated, but the first available automated validation path traverses unrelated MathJax imports. Separating the environment failure from the CSS change requires checking both the exact build diagnostic and the filesystem/package-lock state.
+
+### What warrants a second pair of eyes
+- Confirm the final rendered glyphs in a WebKit browser after dependencies are restored; automated compilation only proves that the CSS is accepted and bundled.
+- Confirm that the intentional image pixelation rule remains appropriate for retro image assets; it is explicitly out of scope for this font fix.
+
+### What should be done in the future
+- If the frozen-lockfile install does not restore the missing packages, investigate the local pnpm store or report the environment issue separately; do not broaden this ticket into MathJax dependency maintenance.
+
+### Code review instructions
+- Review the one-line diff in `web/src/styles/base.css`.
+- Re-run `pnpm --dir web install --frozen-lockfile`, then `pnpm --dir web check` and `pnpm --dir web build`.
+- Use a WebKit-capable browser to compare the `html` computed `-webkit-font-smoothing` value and visual glyph edges.
+
+### Technical details
+- Source before: `-webkit-font-smoothing: none`.
+- Source after: `-webkit-font-smoothing: antialiased`.
+- Failed check command: `pnpm --dir web check`.
+- Failed build command: `pnpm --dir web build`.
+- Unrelated missing packages: `@mathjax/src@4.1.3` and `@mathjax/mathjax-newcm-font@4.1.3`.
+
+## Step 3: Restore the local frontend dependencies and validate the change
+
+The missing MathJax packages were restored with the repository's existing lockfile, without changing `package.json` or `pnpm-lock.yaml`. After that environment repair, the frontend type check, unit tests, and production build all passed. The generated CSS contains `-webkit-font-smoothing:antialiased`, confirming that Vite carries the source change into the production bundle.
+
+The production build emits existing large-chunk warnings from the MathJax/Mermaid dependency graph; those warnings are unrelated to this one-line CSS change. A WebKit browser binary is not installed in the local Playwright cache, so visual glyph comparison in WebKit remains a review/deployment check rather than a completed automated check in this environment.
+
+### Prompt Context
+**User prompt (verbatim):** see Step 1
+**Assistant interpretation:** Complete and validate the CSS-only fix, preserving unrelated worktree files.
+**Inferred user intent:** Have a small reviewable commit that removes WebKit font pixelation and is backed by normal frontend checks.
+**Commit (code):** Pending at this checkpoint.
+
+### What I did
+- The initial `pnpm --dir web install --frozen-lockfile` invocation reached the confirmation prompt about removing and recreating `web/node_modules` but did not proceed in the non-interactive command wrapper.
+- Retried with `CI=1 pnpm --dir web install --frozen-lockfile`; it recreated `web/node_modules` from the existing lockfile and installed 496 packages, including the two missing MathJax packages.
+- Ran `pnpm --dir web check`; it passed.
+- Ran `pnpm --dir web exec vitest run`; 9 test files and 93 tests passed.
+- Ran `pnpm --dir web build`; it passed and emitted the production bundle.
+- Checked the generated CSS with `rg`; the bundle contains `-webkit-font-smoothing:antialiased`.
+- Ran `git diff --check`; it passed.
+- Checked the Playwright browser cache; Chromium is installed, but no WebKit executable is available.
+
+### Why
+- Reinstalling from the frozen lockfile repairs the local validation environment without changing dependency intent.
+- Type checking, unit tests, production bundling, and generated-CSS inspection cover the regression's source-to-artifact path.
+- The browser-specific appearance still deserves a real WebKit review because the available automated browser is Chromium and no WebKit runtime is installed.
+
+### What worked
+- `pnpm --dir web check`: passed with no diagnostics.
+- `pnpm --dir web exec vitest run`: 9 files / 93 tests passed.
+- `pnpm --dir web build`: passed after 17.76 seconds; Vite transformed 4,106 modules and emitted the CSS bundle containing the new value.
+- `git diff --check`: passed.
+
+### What didn't work
+- First install attempt: `pnpm --dir web install --frozen-lockfile` displayed `The modules directory at "/home/manuel/code/wesen/go-go-golems/publish-vault/web/node_modules" will be removed and reinstalled from scratch. Proceed? (Y/n)` and did not complete in the non-interactive wrapper. Retried with `CI=1`, which succeeded.
+- No WebKit visual run was possible because the Playwright WebKit browser is not installed locally.
+- The build retained existing warnings about chunks larger than 500 kB after minification; no new source warning was introduced by this change.
+
+### What I learned
+- The CSS change is accepted by the frontend toolchain and is present in the generated artifact, so the initial validation failure was only a stale dependency tree.
+- The production build's large-chunk warning is part of the existing MathJax/Mermaid bundle shape and is not a reason to alter this focused ticket.
+
+### What was tricky to build
+- The main implementation was intentionally simple; the only operational wrinkle was that a stale `node_modules` directory masked the normal build until it was recreated with the frozen lockfile.
+
+### What warrants a second pair of eyes
+- Check the rendered text in Safari or another WebKit browser, especially at the 14px base size, to ensure grayscale antialiasing gives the intended balance between readability and the retro aesthetic.
+- Review that retaining `image-rendering: pixelated` does not affect text indirectly through a component-specific transform; no such coupling was found in the source search.
+
+### What should be done in the future
+- If visual QA confirms the result, consider documenting the intentional distinction between text smoothing and pixel-art image rendering in the base stylesheet comments. This is optional and outside the fix itself.
+
+### Code review instructions
+- Review commit's one-line source change in `web/src/styles/base.css`.
+- Run `pnpm --dir web check`.
+- Run `pnpm --dir web exec vitest run`.
+- Run `pnpm --dir web build` and inspect the emitted CSS for `-webkit-font-smoothing:antialiased`.
+- Perform a manual Safari/WebKit visual check when available.
+
+### Technical details
+- Dependency recovery: `CI=1 pnpm --dir web install --frozen-lockfile`.
+- Successful validation: `pnpm --dir web check`; `pnpm --dir web exec vitest run`; `pnpm --dir web build`; `git diff --check`.
+- Test result: 93 frontend tests passed across 9 files.
+- Artifact result: Vite emitted `dist/assets/main-BoV9Hi73.css` with `-webkit-font-smoothing:antialiased`.
+- Known build note: existing chunks above 500 kB after minification.
