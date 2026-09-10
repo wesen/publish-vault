@@ -1,7 +1,7 @@
 ---
 Title: Investigation diary
 Ticket: PV-WEBKIT-FONT-001
-Status: active
+Status: complete
 Topics:
     - frontend
     - styling
@@ -11,10 +11,8 @@ DocType: reference
 Intent: long-term
 Owners: []
 RelatedFiles:
-    - Path: repo://publish-vault/web/src/index.css
+    - Path: repo://web/src/index.css
       Note: Frontend stylesheet entry point that imports base.css.
-    - Path: repo://publish-vault/web/src/styles/base.css
-      Note: Global WebKit font smoothing and image-rendering declarations under investigation.
     - Path: repo://web/src/styles/base.css
       Note: Implementation and generated-CSS validation target.
 ExternalSources: []
@@ -23,6 +21,8 @@ LastUpdated: 2026-09-10T16:20:00-04:00
 WhatFor: Resuming or reviewing the WebKit font-rendering fix.
 WhenToUse: Read before continuing work on PV-WEBKIT-FONT-001.
 ---
+
+
 
 
 # Investigation diary
@@ -209,3 +209,113 @@ The production build emits existing large-chunk warnings from the MathJax/Mermai
 - Test result: 93 frontend tests passed across 9 files.
 - Artifact result: Vite emitted `dist/assets/main-BoV9Hi73.css` with `-webkit-font-smoothing:antialiased`.
 - Known build note: existing chunks above 500 kB after minification.
+
+## Step 4: Repair ticket relations and prepare the completion checkpoint
+
+The implementation commit `60bd168` passed the repository pre-commit `web-check` hook and contains the CSS fix plus the diary and task/changelog updates. The first post-commit docmgr doctor run found two invalid related-file URIs because the manually authored frontmatter used `repo://publish-vault/...` while this workspace's repository-relative convention is `repo://web/...`. I corrected those entries, retained the valid implementation relation, added the correct stylesheet entry-point relation, and reran doctor successfully.
+
+All three implementation tasks are now checked. The remaining completion work is documentation state: update the ticket's final summary/status, close it, rerun ticket hygiene, and commit that final bookkeeping separately from the implementation milestone.
+
+### Prompt Context
+**User prompt (verbatim):** see Step 1
+**Assistant interpretation:** Finish the ticket with clean docmgr metadata and a separate completion checkpoint after the implementation commit.
+**Inferred user intent:** Leave a reviewable, searchable ticket rather than only a source-code change.
+**Commit (code):** `60bd168` — "fix(web): smooth fonts in WebKit".
+
+### What I did
+- Reviewed the implementation commit and confirmed the pre-commit hook ran `pnpm --dir web check` successfully.
+- Ran `docmgr doctor --ticket PV-WEBKIT-FONT-001 --stale-after 30`.
+- Recorded and corrected the two invalid `repo://publish-vault/...` related-file entries.
+- Added valid `repo://web/src/index.css` relation metadata for the stylesheet import entry point.
+- Reran `docmgr doctor --ticket PV-WEBKIT-FONT-001 --stale-after 30`; all checks passed.
+- Confirmed all tasks are checked in `tasks.md`.
+
+### Why
+- Related-file metadata must resolve to real repository paths so future agents can navigate from the diary to source evidence.
+- Separating completion bookkeeping from the implementation commit keeps the CSS change independently reviewable while preserving a clean ticket history.
+
+### What worked
+- Docmgr hygiene now reports: `✅ All checks passed`.
+- The implementation commit is focused on the requested CSS fix and its ticket evidence.
+
+### What didn't work
+- The first doctor run reported two warnings: `missing_related_file` for `repo://publish-vault/web/src/index.css` and `repo://publish-vault/web/src/styles/base.css`. Both were metadata path-prefix errors, not missing source files. Removing the invalid entries and re-adding repository-relative `repo://web/...` entries resolved them.
+
+### What I learned
+- In this repository, docmgr's `repo://` URI is rooted at the repository contents, so paths under `web/` must use `repo://web/...`, not the repository name as an extra path segment.
+
+### What was tricky to build
+- The source change was trivial; preserving high-quality ticket navigation required checking the generated relation paths against docmgr's actual URI resolver rather than assuming the visible repository name belonged in every URI.
+
+### What warrants a second pair of eyes
+- Review the final ticket status and summary after closing, and ensure the implementation commit remains the only source-code change for this issue.
+- Perform manual WebKit visual QA when a Safari/WebKit runtime is available; this remains the only unexecuted validation item.
+
+### What should be done in the future
+- If this ticket is revisited for visual QA, append a new diary step with the browser/version, viewport, computed style, and before/after observation rather than rewriting this history.
+
+### Code review instructions
+- Start at `60bd168` and inspect `web/src/styles/base.css`.
+- Read this diary's Steps 1–4 for scope, failure diagnostics, validation evidence, and metadata correction.
+- Run `docmgr doctor --ticket PV-WEBKIT-FONT-001 --stale-after 30`.
+
+### Technical details
+- Implementation commit: `60bd168`.
+- Valid related URIs: `repo://web/src/styles/base.css`, `repo://web/src/index.css`.
+- Final pre-close doctor result: all checks passed.
+- Outstanding non-automated check: manual WebKit visual review.
+
+## Step 5: Close the ticket after the completion audit
+
+The ticket is complete: the CSS fix is implemented in `60bd168`, all three tasks are checked, the frontend validation suite passed after restoring dependencies, and docmgr reports no findings. The ticket was closed with status `complete`, while the diary intentionally preserves the limitation that no local WebKit runtime was available for a visual screenshot check.
+
+This is a documentation-only completion checkpoint after the focused implementation commit. Unrelated pre-existing untracked files (`.claude/`, `.playwright-mcp/`, `search-memory-results.png`, and `ttmp/vocabulary.yaml.orig`) remain untouched and are not part of this ticket.
+
+### Prompt Context
+**User prompt (verbatim):** see Step 1
+**Assistant interpretation:** Finish the requested CSS fix and leave the new docmgr ticket closed with an evidence-backed detailed diary.
+**Inferred user intent:** Have the WebKit readability issue addressed with a concise code change and an auditable work record.
+**Commit (code):** `60bd168` — "fix(web): smooth fonts in WebKit".
+
+### What I did
+- Ran `docmgr ticket close --ticket PV-WEBKIT-FONT-001` with a completion-specific changelog entry.
+- Updated the ticket index summary, overview, and status text to match the closed frontmatter.
+- Updated this diary's document status to `complete`.
+- Reran `docmgr doctor --ticket PV-WEBKIT-FONT-001 --stale-after 30`; it reported `✅ All checks passed`.
+- Reviewed `git status` to ensure unrelated untracked files were not staged.
+
+### Why
+- Closing the ticket only after every explicit task is checked and the hygiene audit is clean provides a defensible completion boundary.
+- Calling out the unavailable WebKit runtime prevents the validation record from implying visual evidence that was not collected.
+
+### What worked
+- Ticket close succeeded and set the index status from `active` to `complete`.
+- Final docmgr doctor run passed with no findings.
+- The final ticket has a source relation, a detailed diary, checked tasks, a changelog, and a concise implementation summary.
+
+### What didn't work
+- Manual WebKit visual validation remains unavailable locally because the Playwright cache has no WebKit browser executable. This is a known validation limitation, not a failed implementation check.
+
+### What I learned
+- The smallest safe change was indeed a single CSS declaration; the surrounding ticket work was mainly evidence capture, dependency restoration for validation, and metadata hygiene.
+
+### What was tricky to build
+- Maintaining an accurate completion claim required distinguishing “all automated and source-to-bundle checks passed” from “visual WebKit QA performed.” The ticket is complete for the requested CSS implementation, but the latter remains explicitly open as optional follow-up.
+
+### What warrants a second pair of eyes
+- Review `60bd168` and the final ticket metadata.
+- If visual assurance is required for release, inspect the page in Safari/WebKit and append the browser-specific result to this diary.
+
+### What should be done in the future
+- Perform and record Safari/WebKit visual QA when a compatible runtime is available; no code change is currently indicated by the automated evidence.
+
+### Code review instructions
+- Review `web/src/styles/base.css` line 11 and commit `60bd168`.
+- Read the ticket index and this diary for the complete scope and validation record.
+- Re-run `pnpm --dir web check`, `pnpm --dir web exec vitest run`, `pnpm --dir web build`, and `docmgr doctor --ticket PV-WEBKIT-FONT-001 --stale-after 30`.
+
+### Technical details
+- Closed ticket: `PV-WEBKIT-FONT-001`.
+- Implementation commit: `60bd168`.
+- Completion audit: 3/3 tasks checked; 9 test files and 93 tests passed; type check, build, generated CSS check, diff check, and docmgr doctor passed.
+- Remaining evidence gap: no local WebKit executable for visual comparison.

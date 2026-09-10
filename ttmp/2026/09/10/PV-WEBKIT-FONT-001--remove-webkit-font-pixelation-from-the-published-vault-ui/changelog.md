@@ -22,3 +22,8 @@ Changed global WebKit font smoothing from none to antialiased in base.css. Resto
 
 - /home/manuel/code/wesen/go-go-golems/publish-vault/web/src/styles/base.css — One-line WebKit font smoothing fix.
 
+
+## 2026-09-10
+
+Completed the focused WebKit font-smoothing fix. All tasks and automated frontend validation passed; manual Safari/WebKit visual QA remains an optional follow-up when that runtime is available.
+
